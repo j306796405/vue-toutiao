@@ -1,95 +1,98 @@
-'use strict'
-const utils = require('./utils')
-const webpack = require('webpack')
-const config = require('../config')
-const merge = require('webpack-merge')
+"use strict"
 const path = require('path')
-const baseWebpackConfig = require('./webpack.base.conf')
-const CopyWebpackPlugin = require('copy-webpack-plugin')
-const HtmlWebpackPlugin = require('html-webpack-plugin')
-const FriendlyErrorsPlugin = require('friendly-errors-webpack-plugin')
-const portfinder = require('portfinder')
+const webpack = require('webpack')
+const styleLoader = require('./style-loader')
+const devConf = require('../config').dev  //开发环境配置参数
+const baseConf = require('./webpack.base.conf'); //webpack基本配置
 
-const HOST = process.env.HOST
-const PORT = process.env.PORT && Number(process.env.PORT)
+//一个webpack配置合并模块,可简单的理解为与Object.assign()功能类似！
+const merge = require("webpack-merge")
+//一个创建html入口文件的webpack插件！
+const HtmlWebpackPlugin = require("html-webpack-plugin")
+//一个编译提示的webpack插件！
+const FriendlyErrorsPlugin = require("friendly-errors-webpack-plugin")
+//发送系统通知的一个node模块！
+const notifier = require("node-notifier")
 
-const devWebpackConfig = merge(baseWebpackConfig, {
-  module: {
-    rules: utils.styleLoaders({ sourceMap: config.dev.cssSourceMap, usePostCSS: true })
-  },
-  // cheap-module-eval-source-map is faster for development
-  devtool: config.dev.devtool,
+// 拼接路径
+function resolve(dir) {
+    return path.join(__dirname, '..', dir)
+}
+// 资源路径
+const assetsPath = function (dir) {
+    return path.posix.join(devConf.assetsSubDirectory, dir)
+}
 
-  // these devServer options should be customized in /config/index.js
-  devServer: {
-    clientLogLevel: 'warning',
-    historyApiFallback: {
-      rewrites: [
-        { from: /.*/, to: path.posix.join(config.dev.assetsPublicPath, 'index.html') },
-      ],
+const dev = merge(baseConf, {
+    output: {
+        //文件名
+        filename: '[name]-[hash].js',
+        //html引用资源路径,在dev-server中,引用的是内存中文件！
+        publicPath: devConf.publicPath
     },
-    hot: true,
-    contentBase: false, // since we use CopyWebpackPlugin.
-    compress: true,
-    host: HOST || config.dev.host,
-    port: PORT || config.dev.port,
-    open: config.dev.autoOpenBrowser,
-    overlay: config.dev.errorOverlay
-      ? { warnings: false, errors: true }
-      : false,
-    publicPath: config.dev.assetsPublicPath,
-    proxy: config.dev.proxyTable,
-    quiet: true, // necessary for FriendlyErrorsPlugin
-    watchOptions: {
-      poll: config.dev.poll,
-    }
-  },
-  plugins: [
-    new webpack.DefinePlugin({
-      'process.env': require('../config/dev.env')
-    }),
-    new webpack.HotModuleReplacementPlugin(),
-    new webpack.NamedModulesPlugin(), // HMR shows correct file names in console on update.
-    new webpack.NoEmitOnErrorsPlugin(),
-    // https://github.com/ampedandwired/html-webpack-plugin
-    new HtmlWebpackPlugin({
-      filename: 'index.html',
-      template: 'index.html',
-      inject: true
-    }),
-    // copy custom static assets
-    new CopyWebpackPlugin([
-      {
-        from: path.resolve(__dirname, '../static'),
-        to: config.dev.assetsSubDirectory,
-        ignore: ['.*']
-      }
-    ])
-  ]
-})
 
-module.exports = new Promise((resolve, reject) => {
-  portfinder.basePort = process.env.PORT || config.dev.port
-  portfinder.getPort((err, port) => {
-    if (err) {
-      reject(err)
-    } else {
-      // publish the new Port, necessary for e2e tests
-      process.env.PORT = port
-      // add port to devServer config
-      devWebpackConfig.devServer.port = port
+    module: {
+        rules: styleLoader.styleLoader({ extract: false, sourceMap: true })
+    },
 
-      // Add FriendlyErrorsPlugin
-      devWebpackConfig.plugins.push(new FriendlyErrorsPlugin({
-        compilationSuccessInfo: {
-          messages: [`Your application is running here: http://${devWebpackConfig.devServer.host}:${port}`],
+    //生成sourceMaps(方便调试)
+    devtool: devConf.devtoolType,
+
+    //启动一个express服务器,使我们可以在本地进行开发！！！
+    devServer: {
+        hot: true, // 热加载
+        inline: true, //自动刷新
+        open: true, //自动打开浏览器
+        historyApiFallback: true, //在开发单页应用时非常有用，它依赖于HTML5 history API，如果设置为true，所有的跳转将指向index.html
+        host: devConf.host, //主机名
+        port: devConf.port, //端口号
+        proxy: devConf.proxyTable, //配置反向代理解决跨域
+        compress: true, //为你的代码进行压缩。加快开发流程和优化的作用
+        overlay: { // 在浏览器上全屏显示编译的errors或warnings。
+            errors: true,
+            warnings: false
         },
-        onErrors: config.dev.notifyOnErrors
-        ? utils.createNotifierCallback()
-        : undefined
-      }))
+        quiet: true // 终端输出的只有初始启动信息。 webpack 的警告和错误是不输出到终端的
+    },
+    plugins: [
+        //开启HMR(热替换功能,替换更新部分,不重载页面！)
+        new webpack.HotModuleReplacementPlugin(),
 
-      resolve(devWebpackConfig)
-    }
-  })
-})
+        //显示模块相对路径
+        new webpack.NamedModulesPlugin(),
+
+        //配置html入口信息
+        new HtmlWebpackPlugin({
+            filename: 'index.html',
+            template: 'index.html',
+            inject: true
+        }),
+
+        //编译提示插件
+        new FriendlyErrorsPlugin({
+            //编译成功提示！
+            compilationSuccessInfo: {
+                messages: [
+                    `Your application is running here: http://${devConf.host}:${devConf.port}`
+                ]
+            },
+            //编译出错！
+            onErrors: function (severity, errors) {
+                if (severity !== "error") {
+                    return;
+                }
+                const error = errors[0];
+                const filename = error.file.split("!").pop();
+                //编译出错时,右下角弹出错误提示！
+                notifier.notify({
+                    title: "xc-cli",
+                    message: severity + ": " + error.name,
+                    subtitle: filename || "",
+                    icon: path.join(__dirname, "xc-cli.png")
+                });
+            }
+        })
+    ]
+});
+
+module.exports = dev;
