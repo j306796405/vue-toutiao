@@ -10,7 +10,7 @@
 
   export default {
     components: {HeadComponent, BodyComponent},
-    datat () {
+    data () {
       return {}
     }
   }

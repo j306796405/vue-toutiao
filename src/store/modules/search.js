@@ -17,7 +17,6 @@ const common = {
       return new Promise((resolve, reject) => {
         axios.get('search', params)
           .then(res => {
-            console.log(res)
             state.loading = false
             if (res.data.list.length < 6) {
               state.loadingMore = true
