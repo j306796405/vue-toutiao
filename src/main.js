@@ -26,6 +26,7 @@ Vue.prototype.back = (route) => {
 
 // 跳转文章页
 Vue.prototype.skip = (route, id) => {
+  route.animate = 1
   route.push('/article/' + id)
 }
 

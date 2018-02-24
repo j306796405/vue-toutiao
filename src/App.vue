@@ -38,7 +38,7 @@
               animate === 3 ?  'slide-top' :
                 animate === 4 ?  'slide-bottom' : ''
         }
-        this.$router.animate = 0
+        this.$router.animate = 2
       }
     },
     computed: {
